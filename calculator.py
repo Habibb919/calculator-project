@@ -59,17 +59,25 @@ for row in range(row_count):
 
 frame.pack()
 
-A = "0"
+A = None
 operator = None
-B = None
+waiting_for_second_operand = False
 
 
 def clear_all():
-    global A, B, operator
-    A = "0"
-    B = None
+    global A, operator, waiting_for_second_operand
+    A = None
     operator = None
+    waiting_for_second_operand = False
     label["text"] = "0"
+
+
+def show_error():
+    global A, operator, waiting_for_second_operand
+    A = None
+    operator = None
+    waiting_for_second_operand = True
+    label["text"] = "Error"
 
 
 def remove_zero_decimal(num):
@@ -96,77 +104,85 @@ def compute_expression(first_value, second_value, selected_operator):
 
 
 def button_clicked(value):
-    global A, B, operator
+    global A, operator, waiting_for_second_operand
+
+    if value == "AC":
+        clear_all()
+        return
+
+    # Ekranda "Error" varsa, rəqəm basılana qədər digər əməliyyatları blokla
+    if label["text"] == "Error" and value not in "0123456789.":
+        return
 
     if value in right_symbols:
         if value == "=":
-            if A is not None and operator is not None:
+            if A is not None and operator is not None and not waiting_for_second_operand:
                 try:
                     result = compute_expression(A, label["text"], operator)
                     label["text"] = remove_zero_decimal(result)
-                    A = label["text"]
-                    B = None
+                    A = None
                     operator = None
-                except ValueError:
-                    label["text"] = "Error"
-                    clear_all()
-                except ZeroDivisionError:
-                    label["text"] = "Error"
-                    clear_all()
+                    waiting_for_second_operand = True
+                except (ValueError, ZeroDivisionError):
+                    show_error()
 
         elif value in "+-×÷":
+            # Əgər artıq operator seçilibsə və ikinci ədəd hələ yazılmayıbsa, sadəcə operatoru dəyiş
+            if operator is not None and waiting_for_second_operand:
+                operator = value
+                return
+
             if operator is not None and A is not None:
                 try:
                     result = compute_expression(A, label["text"], operator)
-                    A = remove_zero_decimal(result)
-                    label["text"] = A
-                except ValueError:
-                    label["text"] = "Error"
-                    clear_all()
+                    formatted = remove_zero_decimal(result)
+                    label["text"] = formatted
+                    A = formatted
+                except (ValueError, ZeroDivisionError):
+                    show_error()
                     return
-                except ZeroDivisionError:
-                    label["text"] = "Error"
-                    clear_all()
-                    return
+            else:
+                A = label["text"]
 
-            A = label["text"]
             operator = value
-            B = "0"
-            label["text"] = "0"
+            waiting_for_second_operand = True
 
     elif value in top_symbols:
-        if value == "AC":
-            clear_all()
-        elif value == "+/-":
+        if value == "+/-":
             try:
                 result = float(label["text"]) * -1
                 label["text"] = remove_zero_decimal(result)
             except ValueError:
-                label["text"] = "Error"
-                clear_all()
+                show_error()
         elif value == "%":
             try:
                 result = float(label["text"]) / 100
                 label["text"] = remove_zero_decimal(result)
             except ValueError:
-                label["text"] = "Error"
-                clear_all()
+                show_error()
 
     elif value == "√":
         try:
-            result = float(label["text"]) ** 0.5
-            label["text"] = remove_zero_decimal(result)
+            num = float(label["text"])
+            if num < 0:
+                show_error()
+                return
+            label["text"] = remove_zero_decimal(num ** 0.5)
+            waiting_for_second_operand = True
         except ValueError:
-            label["text"] = "Error"
-            clear_all()
+            show_error()
 
     else:
         if value == ".":
-            if "." not in label["text"]:
+            if waiting_for_second_operand or label["text"] == "Error":
+                label["text"] = "0."
+                waiting_for_second_operand = False
+            elif "." not in label["text"]:
                 label["text"] += value
         elif value in "0123456789":
-            if label["text"] == "0" or label["text"] == "Error":
+            if waiting_for_second_operand or label["text"] in ("0", "Error"):
                 label["text"] = value
+                waiting_for_second_operand = False
             else:
                 label["text"] += value
 
